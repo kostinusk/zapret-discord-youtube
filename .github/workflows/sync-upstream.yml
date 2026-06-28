@@ -1,0 +1,52 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/Flowseal/zapret-discord-youtube.git
+          git fetch upstream main
+          git switch -C sync/upstream origin/main
+          git merge --no-edit upstream/main
+
+          if git diff --quiet origin/main..HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git push --force-with-lease origin HEAD:sync/upstream
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open sync PR
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --base main \
+            --head sync/upstream \
+            --title "Sync Flowseal upstream" \
+            --body "Merge latest Flowseal/zapret-discord-youtube main into this fork." \
+          || gh pr edit sync/upstream \
+            --title "Sync Flowseal upstream" \
+            --body "Merge latest Flowseal/zapret-discord-youtube main into this fork."
