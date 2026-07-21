@@ -1,5 +1,5 @@
 @echo off
-set "LOCAL_VERSION=1.9.9c"
+set "LOCAL_VERSION=1.9.9d"
 
 :: External commands
 if "%~1"=="status_zapret" (
@@ -238,16 +238,22 @@ echo Pick one of the options:
 set "count=0"
 for /f "delims=" %%F in ('powershell -NoProfile -Command "Get-ChildItem -LiteralPath '.' -Filter '*.bat' | Where-Object { $_.Name -notlike 'service*' } | Sort-Object { [Regex]::Replace($_.Name, '(\d+)', { $args[0].Value.PadLeft(8, '0') }) } | ForEach-Object { $_.Name }"') do (
     set /a count+=1
-    echo !count!. %%F
+    echo   !count!. %%F
     set "file!count!=%%F"
 )
 
+echo   0. Exit
+
+echo.
+
 :: Choosing file
 set "choice="
-set /p "choice=Input file index (number): "
+set /p "choice=Input option (0-!count!, default: 0): "
 if "!choice!"=="" (
-    echo The choice is empty, exiting...
-    pause
+    set "choice=0"
+)
+
+if "!choice!"=="0" (
     goto menu
 )
 
@@ -922,18 +928,20 @@ set "hostsUrl=https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/
 set "tempFile=%TEMP%\zapret_hosts.txt"
 set "needsUpdate=0"
 
+set "cacheBuster=%RANDOM%%RANDOM%%RANDOM%"
+set "requestUrl=%hostsUrl%?t=%cacheBuster%"
+
 echo Checking hosts file...
 
 if exist "%SystemRoot%\System32\curl.exe" (
-    curl -L -s -o "%tempFile%" "%hostsUrl%"
+    curl -L -s -o "%tempFile%" "%requestUrl%"
 ) else (
     powershell -NoProfile -Command ^
-        "$url = '%hostsUrl%';" ^
+        "$url = '%requestUrl%';" ^
         "$out = '%tempFile%';" ^
         "$res = Invoke-WebRequest -Uri $url -TimeoutSec 10 -UseBasicParsing;" ^
         "if ($res.StatusCode -eq 200) { $res.Content | Out-File -FilePath $out -Encoding UTF8 } else { exit 1 }"
 )
-
 if not exist "%tempFile%" (
     call :PrintRed "Failed to download hosts file from repository"
     call :PrintYellow "Copy hosts file manually from %hostsUrl%"
